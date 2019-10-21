@@ -71,7 +71,11 @@ public class SpringBatchGsApplication {
 
     @Bean
     JdbcBatchItemWriter <Person> jdbcBatchItemWriter(DataSource ds) {
-        return new JdbcBatchItemWriterBuilder<Person>().dataSource(ds).build();
+        return new JdbcBatchItemWriterBuilder<Person>()
+                .dataSource(ds)
+                .sql("insert into PEOPLE(AGE, FIRST_NAME, EMAIL) values (:age, :firstName, :email)")
+                .beanMapped()
+                .build();
     }
 
     @Bean
