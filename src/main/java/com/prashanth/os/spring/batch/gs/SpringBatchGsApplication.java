@@ -24,9 +24,11 @@ import javax.sql.DataSource;
 @SpringBootApplication
 public class SpringBatchGsApplication {
 
-    static class Person {
+    public static class Person {
         private int age;
         private String firstName, email;
+
+        public Person(){}
 
         public Person(int age, String firstName, String email) {
             this.age = age;
@@ -70,7 +72,7 @@ public class SpringBatchGsApplication {
     }
 
     @Bean
-    JdbcBatchItemWriter <Person> jdbcBatchItemWriter(DataSource ds) {
+    JdbcBatchItemWriter<Person> jdbcBatchItemWriter(DataSource ds) {
         return new JdbcBatchItemWriterBuilder<Person>()
                 .dataSource(ds)
                 .sql("insert into PEOPLE(AGE, FIRST_NAME, EMAIL) values (:age, :firstName, :email)")
@@ -85,7 +87,7 @@ public class SpringBatchGsApplication {
             ItemWriter<? super Person> itemWriter) {
 
         Step step1 = stepBuilderFactory.get("file-db")
-                .<Person, Person> chunk(100)
+                .<Person, Person>chunk(100)
                 .reader(itemReader)
                 .writer(itemWriter)
                 .build();
