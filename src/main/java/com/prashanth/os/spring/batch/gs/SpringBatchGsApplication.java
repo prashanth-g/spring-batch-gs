@@ -10,15 +10,19 @@ import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
+import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
 
 import javax.sql.DataSource;
+import java.util.Collections;
+import java.util.Map;
 
 @EnableBatchProcessing
 @SpringBootApplication
@@ -92,10 +96,32 @@ public class SpringBatchGsApplication {
                 .writer(itemWriter)
                 .build();
 
+        Step step2 = stepBuilderFactory.get("db-file")
+                .<Person, Person>chunk(100)
+                .reader(itemReader)
+                .writer(itemWriter)
+                .build();
+
         return jobBuilderFactory.get("etl") // Create job
                 .incrementer(new RunIdIncrementer())
                 .start(step1)
+                .next(step2)
                 .build();
+    }
+
+    @Configuration
+    public static class Step2Configuration {
+        @Bean
+        ItemReader <Map<Integer, Integer>> jdbcReader (DataSource dataSource) {
+            return new JdbcCursorItemReaderBuilder<Map<Integer, Integer>>()
+                    .dataSource(dataSource)
+                    .name("jdbc-reader")
+                    .rowMapper((resultSet, i) -> Collections.singletonMap(
+                            resultSet.getInt("a"),
+                            resultSet.getInt("c")
+                    ))
+                    .build();
+        }
     }
 
     public static void main(String[] args) {
