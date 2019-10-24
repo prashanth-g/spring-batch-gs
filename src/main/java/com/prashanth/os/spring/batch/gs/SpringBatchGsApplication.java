@@ -12,7 +12,10 @@ import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
 import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
+import org.springframework.batch.item.file.FlatFileItemWriter;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
+import org.springframework.batch.item.file.builder.FlatFileItemWriterBuilder;
+import org.springframework.batch.item.file.transform.DelimitedLineAggregator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -116,10 +119,28 @@ public class SpringBatchGsApplication {
             return new JdbcCursorItemReaderBuilder<Map<Integer, Integer>>()
                     .dataSource(dataSource)
                     .name("jdbc-reader")
+                    .sql("select COUNT(age) c, age a from PEOPLE group by age")
                     .rowMapper((resultSet, i) -> Collections.singletonMap(
                             resultSet.getInt("a"),
                             resultSet.getInt("c")
                     ))
+                    .build();
+        }
+
+        @Bean
+        ItemWriter<Map<Integer, Integer>> fileWriter(@Value("${output}") Resource out) {
+            return new FlatFileItemWriterBuilder<Map<Integer, Integer>>()
+                    .name("file-writer")
+                    .resource(out)
+                    .lineAggregator(new DelimitedLineAggregator<Map<Integer, Integer>>() {
+                        {
+                            setDelimiter(",");
+                            setFieldExtractor(integerMap -> {
+                                Map.Entry<Integer, Integer> next = integerMap.entrySet().iterator().next();
+                                return new Object[] {next.getKey(), next.getValue()};
+                            });
+                        }
+                    })
                     .build();
         }
     }
