@@ -12,7 +12,6 @@ import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
 import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
-import org.springframework.batch.item.file.FlatFileItemWriter;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
 import org.springframework.batch.item.file.builder.FlatFileItemWriterBuilder;
 import org.springframework.batch.item.file.transform.DelimitedLineAggregator;
@@ -68,48 +67,26 @@ public class SpringBatchGsApplication {
         }
     }
 
-    @Bean
-    FlatFileItemReader <Person> fileItemReader(@Value("${input}") Resource in) {
-        return new FlatFileItemReaderBuilder<Person>()
-                .name("file-reader")
-                .resource(in)
-                .targetType(Person.class)
-                .delimited().delimiter(",").names(new String[]{"firstName", "age", "email"})
-                .build();
-    }
+    @Configuration
+    public static class Step1Configuration {
+        @Bean
+        FlatFileItemReader <Person> fileItemReader(@Value("${input}") Resource in) {
+            return new FlatFileItemReaderBuilder<Person>()
+                    .name("file-reader")
+                    .resource(in)
+                    .targetType(Person.class)
+                    .delimited().delimiter(",").names(new String[]{"firstName", "age", "email"})
+                    .build();
+        }
 
-    @Bean
-    JdbcBatchItemWriter<Person> jdbcBatchItemWriter(DataSource ds) {
-        return new JdbcBatchItemWriterBuilder<Person>()
-                .dataSource(ds)
-                .sql("insert into PEOPLE(AGE, FIRST_NAME, EMAIL) values (:age, :firstName, :email)")
-                .beanMapped()
-                .build();
-    }
-
-    @Bean
-    Job job(JobBuilderFactory jobBuilderFactory,
-            StepBuilderFactory stepBuilderFactory,
-            ItemReader<? extends Person> itemReader,
-            ItemWriter<? super Person> itemWriter) {
-
-        Step step1 = stepBuilderFactory.get("file-db")
-                .<Person, Person>chunk(100)
-                .reader(itemReader)
-                .writer(itemWriter)
-                .build();
-
-        Step step2 = stepBuilderFactory.get("db-file")
-                .<Person, Person>chunk(100)
-                .reader(itemReader)
-                .writer(itemWriter)
-                .build();
-
-        return jobBuilderFactory.get("etl") // Create job
-                .incrementer(new RunIdIncrementer())
-                .start(step1)
-                .next(step2)
-                .build();
+        @Bean
+        JdbcBatchItemWriter<Person> jdbcBatchItemWriter(DataSource ds) {
+            return new JdbcBatchItemWriterBuilder<Person>()
+                    .dataSource(ds)
+                    .sql("insert into PEOPLE(AGE, FIRST_NAME, EMAIL) values (:age, :firstName, :email)")
+                    .beanMapped()
+                    .build();
+        }
     }
 
     @Configuration
@@ -143,6 +120,31 @@ public class SpringBatchGsApplication {
                     })
                     .build();
         }
+    }
+
+    @Bean
+    Job job(JobBuilderFactory jobBuilderFactory,
+            StepBuilderFactory stepBuilderFactory,
+            Step1Configuration step1Configuration,
+            Step2Configuration step2Configuration) {
+
+        Step step1 = stepBuilderFactory.get("file-db")
+                .<Person, Person>chunk(100)
+                .reader(step1Configuration.fileItemReader(null))
+                .writer(step1Configuration.jdbcBatchItemWriter(null))
+                .build();
+
+        Step step2 = stepBuilderFactory.get("db-file")
+                .<Map<Integer, Integer>, Map<Integer, Integer>>chunk(100)
+                .reader(step2Configuration.jdbcReader(null))
+                .writer(step2Configuration.fileWriter(null))
+                .build();
+
+        return jobBuilderFactory.get("etl") // Create job
+                .incrementer(new RunIdIncrementer())
+                .start(step1)
+                .next(step2)
+                .build();
     }
 
     public static void main(String[] args) {
